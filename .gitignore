@@ -1,0 +1,14 @@
+# Secrets: the Claude API key must never reach GitHub
+.env
+
+# Local only: personal project notes and agent working files
+CLAUDE.md
+.claude/
+
+# Rebuilt on any machine, so not worth storing
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Downloaded data that goes stale within the hour
+satellite_cache.csv
