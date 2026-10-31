@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <title>Night Hotspot Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Leaflet from a CDN: the only external library on the page -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <!-- Leaflet vendored into static/: the demo must survive bad venue WiFi -->
+  <link rel="stylesheet" href="leaflet.css">
   <style>
     body { margin: 0; font-family: system-ui, sans-serif; background: #141414; color: #eee; }
     header { padding: 10px 16px; background: #1e1e1e; }
@@ -17,6 +17,7 @@
     #heat { image-rendering: pixelated; border: 1px solid #444; }
     #map { flex: 1; height: 480px; border: 1px solid #444; }
     .panel { margin: 0 12px 12px; padding: 10px 14px; background: #1e1e1e; border: 1px solid #444; }
+    footer { padding: 10px 16px 16px; color: #e8a0a0; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -31,8 +32,9 @@
     <div id="map"></div>
   </main>
   <div class="panel"><em>Morning briefing will appear here (Step 5).</em></div>
+  <footer>Prototype — not a certified detection system.</footer>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="leaflet.js"></script>
   <script>
     // ---- Map (Leaflet) ----
     const map = L.map("map").setView([55.28, -114.77], 5); // re-centred after first load
@@ -77,11 +79,15 @@
           ctx.fillRect(x * CELLS, y * CELLS, CELLS, CELLS);
         }
       }
-      // Outline every pixel that belongs to a detected hotspot.
+      // Outline the hot pixels: exactly the pixels the hotspot finder used
+      // (strictly above the threshold). The hotspot record itself keeps
+      // only the COUNT of pixels, per the project convention.
       ctx.strokeStyle = "#fff";
-      for (const hs of state.hotspots) {
-        for (const p of hs.pixels) {
-          ctx.strokeRect(p[0] * CELLS + 0.5, p[1] * CELLS + 0.5, CELLS - 1, CELLS - 1);
+      for (let yy = 0; yy < h; yy++) {
+        for (let xx = 0; xx < w; xx++) {
+          if (state.frame[yy * w + xx] > state.threshold_c) {
+            ctx.strokeRect(xx * CELLS + 0.5, yy * CELLS + 0.5, CELLS - 1, CELLS - 1);
+          }
         }
       }
     }

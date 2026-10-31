@@ -20,7 +20,7 @@ detected hotspots, and the AI briefing arrive in later steps.
 ```powershell
 cd C:\Users\SHADHUNTER\hotspot-finder
 python -m venv .venv                                                     # first time only
-.\.venv\Scripts\python.exe -m pip install flask pyserial pytest         # first time only
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt         # first time only
 .\.venv\Scripts\python.exe app.py
 ```
 

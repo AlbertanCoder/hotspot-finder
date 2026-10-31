@@ -1,0 +1,6 @@
+# Pinned Python packages for this project. Install with:
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+flask==3.1.3
+pyserial==3.5
+pytest==9.2.0
+anthropic==2.3.0
