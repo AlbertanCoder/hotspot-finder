@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Night Hotspot Finder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Leaflet from a CDN: the only external library on the page -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #141414; color: #eee; }
+    header { padding: 10px 16px; background: #1e1e1e; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    #status { font-size: 13px; color: #9fd; }
+    /* Hidden until satellite data or the server misbehaves */
+    #banner { display: none; padding: 8px 16px; background: #7a2b00; color: #fff; font-size: 14px; }
+    main { display: flex; gap: 12px; padding: 12px; align-items: flex-start; }
+    #heat { image-rendering: pixelated; border: 1px solid #444; }
+    #map { flex: 1; height: 480px; border: 1px solid #444; }
+    .panel { margin: 0 12px 12px; padding: 10px 14px; background: #1e1e1e; border: 1px solid #444; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Night Hotspot Finder &mdash; demo</h1>
+    <div id="status">loading&hellip;</div>
+  </header>
+  <div id="banner"></div>
+  <main>
+    <!-- Heat image: 32x24 sensor pixels drawn as 20x20 screen pixels each -->
+    <canvas id="heat" width="640" height="480"></canvas>
+    <div id="map"></div>
+  </main>
+  <div class="panel"><em>Morning briefing will appear here (Step 5).</em></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ---- Map (Leaflet) ----
+    const map = L.map("map").setView([55.28, -114.77], 5); // re-centred after first load
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+    const satLayer = L.layerGroup().addTo(map);
+
+    // ---- Heat image (canvas) ----
+    const CELLS = 20;
+    const canvas = document.getElementById("heat");
+    const ctx = canvas.getContext("2d");
+
+    // Fixed colour scale so the picture does not flicker when the hottest
+    // pixel changes: 0 C = dark blue, 35 C = orange, 80 C = white.
+    const RAMP = [
+      [0, [8, 12, 60]],
+      [20, [30, 40, 200]],
+      [35, [210, 70, 0]],
+      [55, [255, 220, 0]],
+      [80, [255, 255, 255]],
+    ];
+    function colorFor(t) {
+      for (let i = 1; i < RAMP.length; i++) {
+        const t1 = RAMP[i][0], c1 = RAMP[i][1];
+        const t0 = RAMP[i - 1][0], c0 = RAMP[i - 1][1];
+        if (t <= t1) {
+          const f = (t - t0) / (t1 - t0);
+          const c = c0.map(function (v, k) { return Math.round(v + (c1[k] - v) * f); });
+          return "rgb(" + c.join(",") + ")";
+        }
+      }
+      return "rgb(255,255,255)"; // hotter than 80 C: white
+    }
+
+    function drawHeat(state) {
+      const w = state.width, h = state.height;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          ctx.fillStyle = colorFor(state.frame[y * w + x]);
+          ctx.fillRect(x * CELLS, y * CELLS, CELLS, CELLS);
+        }
+      }
+      // Outline every pixel that belongs to a detected hotspot.
+      ctx.strokeStyle = "#fff";
+      for (const hs of state.hotspots) {
+        for (const p of hs.pixels) {
+          ctx.strokeRect(p[0] * CELLS + 0.5, p[1] * CELLS + 0.5, CELLS - 1, CELLS - 1);
+        }
+      }
+    }
+
+    function drawSatellite(sat) {
+      satLayer.clearLayers();
+      for (const p of sat.points) {
+        L.circleMarker([p.lat, p.lon], {
+          radius: 3, color: "#ff8c00", fillColor: "#ff8c00", fillOpacity: 0.85,
+        }).addTo(satLayer);
+      }
+    }
+
+    let firstLoad = true;
+    async function refresh() {
+      const banner = document.getElementById("banner");
+      try {
+        const state = await (await fetch("/api/state")).json();
+        if (firstLoad) {
+          map.setView([state.camera.lat, state.camera.lon], 5);
+          firstLoad = false;
+        }
+        drawHeat(state);
+        drawSatellite(state.satellite);
+        if (state.satellite.error) {
+          banner.textContent = "Satellite data: " + state.satellite.error + " (map keeps working)";
+          banner.style.display = "block";
+        } else {
+          banner.style.display = "none";
+        }
+        document.getElementById("status").textContent =
+          "mode: " + state.mode +
+          " \u00b7 threshold " + state.threshold_c + " \u00b0C" +
+          " \u00b7 hotspots: " + state.hotspots.length +
+          " \u00b7 satellite: " + state.satellite.points.length + " of " + state.satellite.total +
+          " within " + state.satellite.radius_km + " km" +
+          " \u00b7 updated " + new Date().toLocaleTimeString();
+      } catch (err) {
+        banner.textContent = "Cannot reach the server: " + err;
+        banner.style.display = "block";
+      }
+    }
+    refresh();
+    setInterval(refresh, 1000); // one refresh per second
+  </script>
+</body>
+</html>
