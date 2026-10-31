@@ -1,5 +1,8 @@
 # Secrets: the Claude API key lives in .env and must never be committed.env
 
+# Private working instructions for this project (stay on this laptop)
+CLAUDE.md
+
 # Python
 .venv/
 __pycache__/
