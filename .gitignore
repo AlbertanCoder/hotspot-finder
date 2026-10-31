@@ -11,3 +11,6 @@ __pycache__/
 
 # Downloaded satellite data (re-downloadable cache)
 cache/
+
+# Personal career plan page (private)
+career-plan.html
