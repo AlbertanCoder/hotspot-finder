@@ -21,6 +21,9 @@ class FakeCamera:
     def __init__(self, width=32, height=24):
         self.width = width
         self.height = height
+        # Fixed seed so the fake scene is the same every run: my tests and
+        # Shad's screen recordings always agree on what the picture shows.
+        random.seed(42)
         # Build the blobs once. They drift a little every frame; they do not
         # teleport, so the picture changes smoothly like a real scene would.
         self.blobs = []

@@ -3,10 +3,7 @@
 CWFIS = Canadian Wildland Fire Information System (Natural Resources Canada).
 It publishes one CSV per day of satellite-detected hotspots for North America,
 named YYYYMMDD.csv under https://cwfis.cfs.nrcan.gc.ca/downloads/hotspots/
-
-NOTE: the old single file "hotspots.csv" no longer exists on the server; this
-module was written against the real files found there (columns: lat, lon,
-rep_date, source, sensor, ...).
+(columns: lat, lon, rep_date, source, sensor, ...; we use lat and lon only).
 """
 
 import csv
@@ -22,16 +19,19 @@ import config
 
 BASE_URL = "https://cwfis.cfs.nrcan.gc.ca/downloads/hotspots/"
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
-CACHE_FILE = os.path.join(CACHE_DIR, "hotspots.csv")
 CACHE_MAX_AGE_S = 60 * 60  # keep a downloaded copy for 1 hour
 
 
+def _cache_path(day):
+    """Cache files are keyed by date: cache/hotspots-YYYYMMDD.csv."""
+    return os.path.join(CACHE_DIR, "hotspots-" + day.strftime("%Y%m%d") + ".csv")
+
+
 def get_satellite_hotspots():
-    """Return {"points": [...], "total": n, "radius_km": k, "error": None|str}.
+    """Return {"points": [{"lat": ..., "lon": ...}, ...], "total": n,
+    "radius_km": k, "error": None|str}.
 
-    Each point is {"lat": ..., "lon": ..., "rep_date": ...}, and only points
-    within SATELLITE_RADIUS_KM of the camera point are included.
-
+    Only points within SATELLITE_RADIUS_KM of the camera point are included.
     This function never raises: any failure comes back as a clear error
     string so the page can show a message and keep running.
     """
@@ -52,26 +52,36 @@ def get_satellite_hotspots():
 def _load_csv():
     """Return (csv_text, warning). Downloads only when the cache is old/missing."""
     os.makedirs(CACHE_DIR, exist_ok=True)
-    if os.path.exists(CACHE_FILE):
-        age = time.time() - os.path.getmtime(CACHE_FILE)
+    today = datetime.date.today()
+    today_cache = _cache_path(today)
+    yesterday_cache = _cache_path(today - datetime.timedelta(days=1))
+
+    if os.path.exists(today_cache):
+        age = time.time() - os.path.getmtime(today_cache)
         if age < CACHE_MAX_AGE_S:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            with open(today_cache, "r", encoding="utf-8") as f:
                 return f.read(), None
+
     try:
-        text = _download()
+        text, day = _download()
     except Exception as exc:
         # Download failed. An old copy beats no copy; the page is told so.
-        if os.path.exists(CACHE_FILE):
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                return f.read(), "using cached satellite data (download failed: %s)" % exc
+        for path in (today_cache, yesterday_cache):
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return f.read(), "using cached satellite data (download failed: %s)" % exc
         raise
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+
+    with open(_cache_path(day), "w", encoding="utf-8") as f:
         f.write(text)
     return text, None
 
 
 def _download():
-    """Fetch today's hotspot file, falling back to yesterday's if needed."""
+    """Fetch today's hotspot file, falling back to yesterday's.
+
+    Returns (csv_text, the_date_it_belongs_to).
+    """
     today = datetime.date.today()
     last_error = None
     for days_back in (0, 1):
@@ -80,7 +90,7 @@ def _download():
         req = urllib.request.Request(url, headers={"User-Agent": "hotspot-finder-demo"})
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
-                return resp.read().decode("utf-8", errors="replace")
+                return resp.read().decode("utf-8", errors="replace"), day
         except urllib.error.HTTPError as exc:
             last_error = "%s gave HTTP %s" % (url, exc.code)
             if exc.code != 404:
@@ -98,7 +108,7 @@ def _parse_and_filter(raw):
         lat = float(row["lat"])
         lon = float(row["lon"])
         if _km_between(config.CAMERA_LAT, config.CAMERA_LON, lat, lon) <= config.SATELLITE_RADIUS_KM:
-            points.append({"lat": lat, "lon": lon, "rep_date": row.get("rep_date", "")})
+            points.append({"lat": lat, "lon": lon})
     return points, total
 
 

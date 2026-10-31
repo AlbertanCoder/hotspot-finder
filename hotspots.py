@@ -1,29 +1,31 @@
 """Find hot spots in a temperature frame. Pure functions: no files, no network.
 
 A frame is a flat list of 768 temperatures in Celsius: 24 rows x 32 columns,
-row by row. The pixel at column x, row y lives at index y * 32 + x.
+row by row. The pixel at column x, row y lives at index y * 32 + x
+(row 0 is the top of the image, facing north).
 """
 
 
-def find_hotspots(frame, width=32, height=24, threshold_c=35.0, min_pixels=1):
+def find_hotspots(frame, threshold_c=35.0, min_pixels=1, width=32, height=24):
     """Return the hotspots found in `frame`, hottest first.
 
-    A hotspot is a group of pixels that are all ABOVE threshold_c and that
-    touch each other up/down/left/right (4 neighbours). Touching only on a
-    diagonal does NOT count as touching.
+    A hotspot is a group of pixels that are all STRICTLY ABOVE threshold_c
+    and that touch each other up/down/left/right (4 neighbours). Touching
+    only on a diagonal does NOT count as touching.
 
-    Each hotspot is a dict:
-      cx, cy  - centre pixel of the group (average of its pixels, rounded)
-      count   - how many pixels are in the group
-      max_c   - hottest temperature in the group
-      pixels  - [[x, y], ...] every pixel in the group, for drawing outlines
+    Each hotspot is a record (the project convention):
+      x, y   - centre pixel: mean of the blob's x values and mean of its y
+               values, rounded to the nearest integer
+      pixels - how many pixels are in the group
+      max_c  - hottest temperature in the group
 
     Groups with fewer than `min_pixels` pixels are ignored.
     """
     if len(frame) != width * height:
         raise ValueError("frame has %d values, expected %d" % (len(frame), width * height))
 
-    # Step 1: which pixels are hot? Strictly ABOVE the threshold.
+    # Step 1: which pixels are hot? Strictly greater than the threshold,
+    # so a pixel exactly at threshold_c is NOT hot.
     hot = [t > threshold_c for t in frame]
     seen = [False] * len(frame)
     hotspots = []
@@ -33,15 +35,15 @@ def find_hotspots(frame, width=32, height=24, threshold_c=35.0, min_pixels=1):
     for start in range(len(frame)):
         if not hot[start] or seen[start]:
             continue
-        stack = [start]          # pixels to visit; pop from the end
+        stack = [start]          # pixels still to visit; pop from the end
         seen[start] = True
-        pixels = []
+        count = 0
         total_x = total_y = 0
         max_c = frame[start]
         while stack:
             i = stack.pop()
             x, y = i % width, i // width
-            pixels.append((x, y))
+            count += 1
             total_x += x
             total_y += y
             if frame[i] > max_c:
@@ -62,17 +64,15 @@ def find_hotspots(frame, width=32, height=24, threshold_c=35.0, min_pixels=1):
                     stack.append(n)
 
         # Step 3: too-small groups are noise, not hotspots.
-        if len(pixels) < min_pixels:
+        if count < min_pixels:
             continue
 
-        pixels.sort()  # row-major order, so output is predictable
         hotspots.append({
-            "cx": round(total_x / len(pixels)),
-            "cy": round(total_y / len(pixels)),
-            "count": len(pixels),
+            "x": round(total_x / count),
+            "y": round(total_y / count),
+            "pixels": count,
             "max_c": round(max_c, 1),
-            "pixels": [[x, y] for x, y in pixels],
         })
 
-    hotspots.sort(key=lambda h: -h["max_c"])
+    hotspots.sort(key=lambda h: -h["max_c"])  # hottest first
     return hotspots

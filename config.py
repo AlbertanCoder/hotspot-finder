@@ -8,7 +8,7 @@ to check. Nothing else in the project should hard-code a number.
 MODE = "fake"
 
 # Serial port the QT Py shows up on (used from Step 3).
-# Find yours with: python sources.py ports
+# Find yours with: python app.py --list-ports
 SERIAL_PORT = "COM5"
 
 # A pixel counts as hot when it is ABOVE this temperature (degrees Celsius).

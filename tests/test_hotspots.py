@@ -37,10 +37,9 @@ def test_one_blob():
     hs = hotspots.find_hotspots(frame, threshold_c=35.0, min_pixels=1)
     assert len(hs) == 1
     h = hs[0]
-    assert h["count"] == 9
+    assert h["pixels"] == 9                # record: "pixels" = pixel count
     assert h["max_c"] == 55.0
-    assert (h["cx"], h["cy"]) == (6, 6)    # centre of the 3x3 square
-    assert len(h["pixels"]) == 9
+    assert (h["x"], h["y"]) == (6, 6)      # centre of the 3x3 square
 
 
 def test_two_separate_blobs():
@@ -50,9 +49,9 @@ def test_two_separate_blobs():
     hs = hotspots.find_hotspots(frame, threshold_c=35.0, min_pixels=1)
     assert len(hs) == 2
     assert hs[0]["max_c"] == 60.0          # sorted hottest first
+    assert (hs[0]["x"], hs[0]["y"]) == (20, 10)
     assert hs[1]["max_c"] == 45.0
-    assert hs[0]["pixels"] == [[20, 10]]
-    assert hs[1]["pixels"] == [[3, 3]]
+    assert (hs[1]["x"], hs[1]["y"]) == (3, 3)
 
 
 def test_blob_touching_the_edge():
@@ -61,9 +60,9 @@ def test_blob_touching_the_edge():
         set_pixel(frame, 0, y, 50.0)       # 3 pixels down the left edge
     hs = hotspots.find_hotspots(frame, threshold_c=35.0, min_pixels=1)
     assert len(hs) == 1
-    assert hs[0]["count"] == 3
-    assert hs[0]["cx"] == 0
-    assert hs[0]["cy"] == 1
+    assert hs[0]["pixels"] == 3
+    assert hs[0]["x"] == 0
+    assert hs[0]["y"] == 1
 
 
 def test_threshold_exactly_equal():
@@ -73,7 +72,21 @@ def test_threshold_exactly_equal():
     set_pixel(frame, 11, 10, 35.1)         # just above threshold: hot
     hs = hotspots.find_hotspots(frame, threshold_c=35.0, min_pixels=1)
     assert len(hs) == 1
-    assert hs[0]["pixels"] == [[11, 10]]
+    assert (hs[0]["x"], hs[0]["y"]) == (11, 10)
+    assert hs[0]["pixels"] == 1
+
+
+def test_centre_rounding_on_even_sized_blob():
+    # 2x2 blob: the mean x is 10.5 and the mean y is 10.5. Python's round()
+    # breaks ties toward the even number, so the centre is (10, 10).
+    frame = make_frame()
+    for x in (10, 11):
+        for y in (10, 11):
+            set_pixel(frame, x, y, 50.0)
+    hs = hotspots.find_hotspots(frame, threshold_c=35.0, min_pixels=1)
+    assert len(hs) == 1
+    assert (hs[0]["x"], hs[0]["y"]) == (10, 10)
+    assert hs[0]["pixels"] == 4
 
 
 def test_min_pixels_drops_small_blobs():
@@ -83,7 +96,7 @@ def test_min_pixels_drops_small_blobs():
         set_pixel(frame, x, 5, 50.0)       # 2-pixel blob: kept
     hs = hotspots.find_hotspots(frame, threshold_c=35.0, min_pixels=2)
     assert len(hs) == 1
-    assert hs[0]["count"] == 2
+    assert hs[0]["pixels"] == 2
 
 
 def test_diagonal_pixels_are_not_one_hotspot():
