@@ -1,0 +1,10 @@
+# Secrets: the Claude API key lives in .env and must never be committed.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Downloaded satellite data (re-downloadable cache)
+cache/
